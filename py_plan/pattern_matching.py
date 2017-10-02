@@ -135,6 +135,13 @@ def extract_strings(s):
         yield s
 
 
+def is_functional_term(term):
+    """
+    Checks if the provided element is a term and is a functional term.
+    """
+    return isinstance(term, tuple) and len(term) > 0 and callable(term[0])
+
+
 def is_negated_term(term):
     """
     Checks if a provided element is a term and is a negated term.
@@ -164,11 +171,13 @@ def pattern_match(pattern, index, substitution, epsilon=0.0):
     index. If no match is found then it returns None.
     """
     substitution = frozenset(substitution.items())
-    pos_pattern = [t for t in pattern if not is_negated_term(t)]
-    neg_pattern = [t[1] for t in pattern if is_negated_term(t)]
+    pos_terms = [t for t in pattern if not is_negated_term(t) and not
+                 is_functional_term(t)]
+    neg_terms = [t[1] for t in pattern if is_negated_term(t)]
+    fun_terms = [t[1] for t in pattern if is_functional_term(t)]
 
-    problem = PatternMatchingProblem(substitution, extra=(pos_pattern,
-                                                          neg_pattern, index,
+    problem = PatternMatchingProblem(substitution, extra=(pos_terms, neg_terms,
+                                                          fun_terms, index,
                                                           epsilon))
 
     for solution in depth_first_search(problem):
@@ -185,12 +194,12 @@ class PatternMatchingProblem(Problem):
         Successor nodes are possible next pattern elements that can be unified.
         """
         sub = dict(node.state)
-        pos_pattern, neg_pattern, index, epsilon = node.extra
+        pos_terms, neg_terms, fun_terms, index, epsilon = node.extra
 
         # Figure out best term to match (only need to choose 1 and don't need
         # to backtrack over choice).
         terms = [(len(index[term]) if term in index else 0, random(), term) for
-                 term in pos_pattern]
+                 term in pos_terms]
         terms.sort()
         term = terms[0][2]
 
@@ -202,22 +211,23 @@ class PatternMatchingProblem(Problem):
             if new_sub is None:
                 continue
 
-            new_neg_pattern = update_neg_pattern(neg_pattern, new_sub, index,
-                                                 epsilon)
-            if new_neg_pattern is None:
+            new_neg_terms = update_neg_pattern(neg_terms, new_sub, index,
+                                               epsilon)
+            if new_neg_terms is None:
                 continue
 
-            pos_pattern = [other for other in pos_pattern if term != other]
+            new_pos_terms = [other for other in pos_terms if term != other]
 
             yield Node(frozenset(new_sub.items()), node, None, 0,
-                       (pos_pattern, new_neg_pattern, index, epsilon))
+                       (new_pos_terms, new_neg_terms, fun_terms, index,
+                        epsilon))
 
     def goal_test(self, node):
         """
         If there are no positive patterns left to match, then we're done.
         """
-        pos_patterns, _, _, _ = node.extra
-        return len(pos_patterns) == 0
+        pos_terms, _, _, _, _ = node.extra
+        return len(pos_terms) == 0
 
 
 if __name__ == "__main__":
