@@ -157,12 +157,20 @@ def update_neg_pattern(neg_pattern, sub, index, epsilon):
         args = set(e for e in extract_strings(term) if is_variable(e))
         if args.issubset(bound_set):
             bterm = subst(sub, term)
-            if bterm in index and len(index[bterm]) > 0:
-                return None
+            key = index_key(bterm)
+
+            if key in index and len(index[key]) > 0:
+                for fact in index[key]:
+                    if unify(bterm, fact, sub, index, epsilon):
+                        return None
         else:
             new_neg_pattern(term)
 
     return new_neg_pattern
+
+
+def update_fun_pattern(fun_pattern, sub, index, epsilon):
+    return fun_pattern
 
 
 def pattern_match(pattern, index, substitution, epsilon=0.0):
@@ -216,10 +224,15 @@ class PatternMatchingProblem(Problem):
             if new_neg_terms is None:
                 continue
 
+            new_fun_terms = update_fun_pattern(fun_terms, new_sub, index,
+                                               epsilon)
+            if new_fun_terms is None:
+                continue
+
             new_pos_terms = [other for other in pos_terms if term != other]
 
             yield Node(frozenset(new_sub.items()), node, None, 0,
-                       (new_pos_terms, new_neg_terms, fun_terms, index,
+                       (new_pos_terms, new_neg_terms, new_fun_terms, index,
                         epsilon))
 
     def goal_test(self, node):
@@ -230,10 +243,15 @@ class PatternMatchingProblem(Problem):
         return len(pos_terms) == 0
 
 
+def eq(a, b):
+    return a == b
+
+
 if __name__ == "__main__":
 
-    kb = [('on', 'A', 'B'), ('on', 'B', 'C'), ('on', 'C', 'D')]
-    q = [('on', '?x', '?y'), ('on', '?y', '?z'), ('not', ('on', '?y', '3'))]
+    kb = [('on', 'A', 'B'), ('on', 'B', 'C'), ('on', 'C', 3)]
+    # q = [('on', '?x', '?y'), ('on', '?y', '?z'), ('not', ('on', '?y', 2.9999999999))]
+    # q = [('on', '?x', '?y'), ('on', '?y', '?z'), (eq, '?y', 'D')]
 
     index = build_index(kb)
 
