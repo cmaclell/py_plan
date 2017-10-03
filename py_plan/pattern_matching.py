@@ -50,7 +50,7 @@ def index_key(fact):
     (('value', '?'), '5')
 
     >>> index_key((('X',('Position','Block1')), 10))
-    (('X',('Position','Block1')), '#NUM')
+    (('X', ('Position', 'Block1')), '#NUM')
 
     >>> index_key((('value', ('Add', ('value', '?x'),
     ...                              ('value', '?y'))), '5'))
@@ -164,13 +164,51 @@ def update_neg_pattern(neg_pattern, sub, index, epsilon):
                     if unify(bterm, fact, sub, index, epsilon):
                         return None
         else:
-            new_neg_pattern(term)
+            new_neg_pattern.append(term)
 
     return new_neg_pattern
 
 
 def update_fun_pattern(fun_pattern, sub, index, epsilon):
+    new_fun_pattern = []
+    bound_set = set(sub)
+
+    for term in fun_pattern:
+        args = set(e for e in extract_strings(term) if is_variable(e))
+        if args.issubset(bound_set):
+            bterm = subst(sub, term)
+
+            # might raise an exception, probably shouldn't happen unless there
+            # is an error in the user specified function
+            result = execute_functions(bterm)
+
+            if result is False:
+                return None
+        else:
+            new_fun_pattern.append(term)
+
     return fun_pattern
+
+
+def execute_functions(fact):
+    """
+    Traverses a fact executing any functions present within. Returns a fact
+    where functions are replaced with the function return value.
+
+    >>> import operator
+    >>> execute_functions((operator.eq, 5, 5))
+    True
+    >>> execute_functions((operator.eq, 5, 6))
+    False
+
+    """
+    if isinstance(fact, tuple) and len(fact) > 1:
+        if callable(fact[0]):
+            return fact[0](*[execute_functions(ele) for ele in fact[1:]])
+        else:
+            return tuple(execute_functions(ele) for ele in fact)
+
+    return fact
 
 
 def pattern_match(pattern, index, substitution, epsilon=0.0):
@@ -182,7 +220,7 @@ def pattern_match(pattern, index, substitution, epsilon=0.0):
     pos_terms = [t for t in pattern if not is_negated_term(t) and not
                  is_functional_term(t)]
     neg_terms = [t[1] for t in pattern if is_negated_term(t)]
-    fun_terms = [t[1] for t in pattern if is_functional_term(t)]
+    fun_terms = [t for t in pattern if is_functional_term(t)]
 
     problem = PatternMatchingProblem(substitution, extra=(pos_terms, neg_terms,
                                                           fun_terms, index,
@@ -249,9 +287,11 @@ def eq(a, b):
 
 if __name__ == "__main__":
 
-    kb = [('on', 'A', 'B'), ('on', 'B', 'C'), ('on', 'C', 3)]
+    import operator
+
+    kb = [('on', 'A', 'B'), ('on', 'B', 'C'), ('on', 'C', 'D')]
     # q = [('on', '?x', '?y'), ('on', '?y', '?z'), ('not', ('on', '?y', 2.9999999999))]
-    # q = [('on', '?x', '?y'), ('on', '?y', '?z'), (eq, '?y', 'D')]
+    q = [('on', '?x', '?y'), ('on', '?y', '?z'), (operator.ne, '?z', 'D')]
 
     index = build_index(kb)
 
