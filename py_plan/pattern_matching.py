@@ -11,9 +11,9 @@ from concept_formation.utils import isNumber
 from py_search.base import Problem
 from py_search.base import Node
 from py_search.uninformed import depth_first_search
-from unification import is_variable
-from unification import subst
-from unification import unify
+from py_plan.unification import is_variable
+from py_plan.unification import subst
+from py_plan.unification import unify
 
 
 def build_index(facts):
