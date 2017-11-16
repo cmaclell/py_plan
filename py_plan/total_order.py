@@ -8,6 +8,7 @@ from py_search.uninformed import breadth_first_search
 from py_search.informed import best_first_search
 from py_search.base import Problem
 from py_search.base import Node
+from py_search.base import GoalNode
 from py_search.utils import compare_searches
 
 from py_plan.pattern_matching import build_index
@@ -19,32 +20,31 @@ from py_plan.base import Operator
 class ProgressionProblem(Problem):
 
     def __init__(self, state, goals, operators):
-        initial = frozenset(state)
-        extra = (goals, operators)
-        self.initial = Node(initial, parent=None, action=None, node_cost=0,
-                            extra=extra)
+        state = frozenset(state)
+        self.goal = GoalNode(frozenset(goals))
+        self.initial = Node(state, parent=None, action=None, node_cost=0,
+                            extra=operators)
 
     def successors(self, node):
         index = build_index(node.state)
-        _, operators = node.extra
-        print()
-        print('state', node.state)
+        operators = node.extra
+        # print()
+        # print('state', node.state)
 
         for o in operators:
-            print('OPERATOR', o)
+            # print('OPERATOR', o)
             for m in o.match(index):
                 dels = frozenset(subst(m, e) for e in o.del_effects)
                 adds = frozenset(subst(m, e) for e in o.add_effects)
                 new_state = node.state.difference(dels).union(adds)
-                print('succ', (o, m), new_state)
+                # print('succ', (o, m), new_state)
                 yield Node(new_state, node, (o, m), node.cost() + o.cost,
                            node.extra)
 
-    def goal_test(self, node):
+    def goal_test(self, node, goal):
         index = build_index(node.state)
-        goals, _ = node.extra
 
-        for m in pattern_match(goals, index, {}):
+        for m in pattern_match(goal.state, index, {}):
             return True
         return False
 
@@ -60,24 +60,24 @@ class RegressionProblem(Problem):
     def successors(self, node):
         index = build_index(node.state)
         _, operators = node.extra
-        print()
-        print('goal', node.state)
+        # print()
+        # print('goal', node.state)
 
         for o in operators:
-            print(o.effects)
+            # print(o.effects)
             for m in pattern_match(o.effects, index, {}, 0.0):
                 dels = frozenset(subst(m, e) for e in o.add_effects)
                 adds = frozenset(subst(m, e) for e in o.conditions)
-                print(adds)
+                # print(adds)
                 goals = node.state.difference(dels).union(adds)
                 
-                print()
-                print(o, goals)
+                # print()
+                # print(o, goals)
 
                 yield Node(goals, node, (o, m), node.cost() + o.cost,
                            node.extra)
 
-    def goal_test(self, node):
+    def goal_test(self, node, goal=None):
         goals = node.state
         state, _ = node.extra
         index = build_index(state)
