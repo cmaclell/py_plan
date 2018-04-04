@@ -7,7 +7,7 @@ from itertools import product
 from random import random
 from random import shuffle
 
-from concept_formation.utils import isNumber
+# from concept_formation.utils import isNumber
 from py_search.base import Problem
 from py_search.base import Node
 from py_search.uninformed import depth_first_search
@@ -49,8 +49,9 @@ def index_key(fact):
     >>> index_key((('value', '?x'), '5'))
     (('value', '?'), '5')
 
-    >>> index_key((('X',('Position','Block1')), 10))
-    (('X', ('Position', 'Block1')), '#NUM')
+    # Removed special indexing for numbers.
+    # >>> index_key((('X',('Position','Block1')), 10))
+    # (('X', ('Position', 'Block1')), '#NUM')
 
     >>> index_key((('value', ('Add', ('value', '?x'),
     ...                              ('value', '?y'))), '5'))
@@ -60,8 +61,9 @@ def index_key(fact):
         return tuple(index_key(ele) for ele in fact)
     elif is_variable(fact):
         return '?'
-    elif isNumber(fact):
-        return '#NUM'
+    # TODO pushing the near number checking into the functions
+    # elif isNumber(fact):
+    #     return '#NUM'
     else:
         return fact
 
@@ -169,7 +171,7 @@ def is_negated_term(term):
     return isinstance(term, tuple) and len(term) > 0 and term[0] == 'not'
 
 
-def update_fun_pattern(fun_pattern, sub, index, epsilon):
+def update_fun_pattern(fun_pattern, sub, index):
     new_fun_pattern = []
     bound_set = set(sub)
 
@@ -219,7 +221,7 @@ def execute_functions(fact):
     return fact
 
 
-def update_pos_pattern(pos_pattern, sub, index, epsilon):
+def update_pos_pattern(pos_pattern, sub, index):
     new_pos_pattern = []
 
     for term in pos_pattern:
@@ -235,7 +237,7 @@ def update_pos_pattern(pos_pattern, sub, index, epsilon):
     return new_pos_pattern
 
 
-def update_neg_pattern(neg_pattern, sub, index, epsilon, free_vars=None):
+def update_neg_pattern(neg_pattern, sub, index, free_vars=None):
     if free_vars is None:
         free_vars = set()
 
@@ -256,12 +258,59 @@ def update_neg_pattern(neg_pattern, sub, index, epsilon, free_vars=None):
 
             if key in index and len(index[key]) > 0:
                 for fact in index[key]:
-                    if unify(bterm, fact, sub, index, epsilon):
+                    if unify(bterm, fact, sub, index):
                         return None
         else:
             new_neg_pattern.append(term)
 
     return new_neg_pattern
+
+
+def update_terms(terms, f_terms, sub, index, partial=False):
+    new_terms = {}
+
+    for necessary in terms:
+        if necessary.issubset(sub):
+            for term in terms[necessary]:
+                bterm = subst(sub, term)
+                if term in f_terms:
+                    bterm = execute_functions(bterm)
+                    if is_negated_term(bterm):
+                        if bterm is False:
+                            continue
+                        if bterm is True:
+                            return None
+                    else:
+                        if bterm is False:
+                            return None
+                        if bterm is True:
+                            continue
+
+                if is_negated_term(bterm):
+                    key = index_key(bterm[1])
+
+                    if key in index and len(index[key]) > 0:
+                        for fact in index[key]:
+                            if unify(bterm[1], fact, sub, index):
+                                # if partial:
+                                #     continue
+                                return None
+                else:
+                    key = index_key(bterm)
+
+                    if key not in index:
+                        if partial:
+                            continue
+                        return None
+
+                    if bterm not in index[key]:
+                        if necessary not in new_terms:
+                            new_terms[necessary] = []
+                        new_terms[necessary].append(term)
+        else:
+            new_terms[necessary] = terms[necessary]
+
+    return new_terms
 
 
 def new_match(pos_terms, neg_terms, free_vars, index, substitution):
@@ -279,81 +328,76 @@ def new_match(pos_terms, neg_terms, free_vars, index, substitution):
                                                           free_vars, index))
 
     for solution in depth_first_search(problem):
-        yield dict(solution.state)
+        yield dict(solution.state_node.state)
 
 
-def identify_necessary_variables(term, pos_args):
+def identify_determined_vars(term):
     if isinstance(term, tuple) and len(term) > 0:
-        if callable(term[0]):
-            args = set(s for s in extract_strings(term) if is_variable(s))
-            if len(args - pos_args) > 0:
-                raise Exception("Functionals cannot have existentially"
-                                "quantified variables")
-        return set.union(*[identify_necessary_variables(ele)
+        if term[0] == 'not' or callable(term[0]):
+            return set()
+        return set.union(*[identify_determined_vars(ele)
                            for ele in term[1:]])
-    elif is_variable(term) and term in pos_args:
+    elif is_variable(term):
+        return set([term])
+    else:
+        return set()
+
+
+def identify_necessary_vars(term, determined_vars, neg=False, fun=False):
+    if isinstance(term, tuple) and len(term) > 0:
+        if term[0] == 'not':
+            return identify_necessary_vars(term[1], determined_vars, neg=True,
+                                           fun=fun)
+        if callable(term[0]):
+            return set.union(*[identify_necessary_vars(ele, determined_vars,
+                                                       neg, fun=True)
+                               for ele in term[1:]])
+        return set.union(*[identify_necessary_vars(ele, determined_vars)
+                           for ele in term[1:]])
+
+    if not is_variable(term):
+        return set()
+
+    if fun and term not in determined_vars:
+        raise Exception("Functionals cannot have existentially"
+                        "quantified variables.")
+
+    if fun or (neg and term in determined_vars):
         return set([term])
 
+    return set()
 
-def pattern_match(pattern, index, substitution, partial=False, epsilon=0.0):
+
+def pattern_match(pattern, index, substitution, partial=False):
     """
     Find substitutions that yield a match of the pattern against the provided
     index. If no match is found then it returns None.
     """
-    substitution = frozenset(substitution.items())
-    pos_terms = [t for t in pattern if not is_negated_term(t) and not
-                 is_functional_term(t)]
-    pos_args = set(s for term in pos_terms for s in extract_strings(term) if is_variable(s))
+    sub = frozenset(substitution.items())
 
-    neg_terms = [t[1] for t in pattern if is_negated_term(t)]
-    neg_args = set(s for term in neg_terms for s in extract_strings(term) if is_variable(s))
+    determined_vars = set(v for t in pattern
+                          for v in identify_determined_vars(t))
 
-    # print(pos_args, neg_args)
-    # TODO need to handle existentially quantified negation
-    # unbound_args = neg_args.difference(pos_args)
-    # print(unbound_args)
+    terms = {}
+    for t in pattern:
+        necessary = frozenset(identify_necessary_vars(t, determined_vars))
+        if necessary not in terms:
+            terms[necessary] = []
+        terms[necessary].append(t)
 
-    fun_terms = [t for t in pattern if not is_negated_term(t) and
-                 is_functional_term(t)]
+    f_terms = set(t for t in pattern if is_functional_term(t))
 
-    new = {}
-    for term in fun_terms:
-        pass
-
-    # need to extract any args that appear in functions.
-    fun_args = set(s for term in fun_terms for fterm in
-                   get_functional_terms(term) for s in extract_strings(fterm)
-                   if is_variable(s))
-    print([fterm for term in fun_terms for fterm in get_functional_terms(term)])
-    print(fun_args)
-
-    neg_terms = update_neg_pattern(neg_terms, substitution, index,
-                                   epsilon)
-    if neg_terms is None:
+    terms = update_terms(terms, f_terms, substitution, index, partial)
+    if terms is None:
         return
-
-    fun_terms = update_fun_pattern(fun_terms, substitution, index,
-                                   epsilon)
-    if fun_terms is None:
-        return
-
-    pos_terms = update_pos_pattern(pos_terms, substitution, index, epsilon)
-    # if pos_terms is None:
-    #     return
 
     if partial:
-        problem = PartialMatchingProblem(substitution, extra=(pos_terms, neg_terms,
-                                                              fun_terms, index,
-                                                              epsilon))
+        problem = PartialMatchingProblem(sub, extra=(terms, f_terms, index))
     else:
-        if pos_terms is None:
-            return
-        problem = PatternMatchingProblem(substitution, extra=(pos_terms, neg_terms,
-                                                              fun_terms, index,
-                                                              epsilon))
+        problem = PatternMatchingProblem(sub, extra=(terms, f_terms, index))
 
     for solution in depth_first_search(problem):
-        yield dict(solution.state)
+        yield dict(solution.state_node.state)
 
 
 class PatternMatchingProblem(Problem):
@@ -366,14 +410,21 @@ class PatternMatchingProblem(Problem):
         Successor nodes are possible next pattern elements that can be unified.
         """
         sub = dict(node.state)
-        pos_terms, neg_terms, fun_terms, index, epsilon = node.extra
+        terms, f_terms, index = node.extra
 
         # Figure out best term to match (only need to choose 1 and don't need
         # to backtrack over choice).
-        terms = [(len(index[subst(sub, term)]) if term in index else 0, random(), term) for
-                 term in pos_terms]
-        terms.sort()
-        term = terms[0][2]
+        p_terms = [(len(index[subst(sub, t)]) if t in index else 0,
+                    len(necessary), random(), t) for necessary in terms
+                   if necessary.issubset(sub) for t in terms[necessary] if not
+                   is_negated_term(t)]
+        if len(p_terms) == 0:
+            return
+
+        p_terms.sort()
+        term = p_terms[0][3]
+
+        # TODO need to figure out how to handle positiver terms with functional
 
         # Pretty sure this is ok AND faster.
         key = index_key(subst(sub, term))
@@ -389,35 +440,25 @@ class PatternMatchingProblem(Problem):
         shuffle(facts)
 
         for fact in facts:
-            new_sub = unify(term, fact, sub, epsilon)
+            # TODO what do we do when the term contains a functional?
+            new_sub = unify(term, fact, sub)
             if new_sub is None:
                 continue
 
-            new_neg_terms = update_neg_pattern(neg_terms, new_sub, index,
-                                               epsilon)
-            if new_neg_terms is None:
-                continue
-
-            new_fun_terms = update_fun_pattern(fun_terms, new_sub, index,
-                                               epsilon)
-            if new_fun_terms is None:
-                continue
-
-            new_pos_terms = update_pos_pattern(pos_terms, new_sub, index, epsilon)
-
-            if new_pos_terms is None:
+            new_terms = update_terms(terms, f_terms, new_sub, index)
+            if new_terms is None:
                 continue
 
             yield Node(frozenset(new_sub.items()), node, None, 0,
-                       (new_pos_terms, new_neg_terms, new_fun_terms, index,
-                        epsilon))
+                       (new_terms, f_terms, index))
 
     def goal_test(self, node, goal):
         """
         If there are no positive patterns left to match, then we're done.
         """
-        pos_terms, _, _, _, _ = node.extra
-        return len(pos_terms) == 0
+        terms, _, _ = node.extra
+        return not any(True for necessary in terms for t in terms[necessary]
+                       if not is_negated_term(t))
 
 
 class PartialMatchingProblem(PatternMatchingProblem):
@@ -430,52 +471,44 @@ class PartialMatchingProblem(PatternMatchingProblem):
         Successor nodes are possible next pattern elements that can be unified.
         """
         sub = dict(node.state)
-        pos_terms, neg_terms, fun_terms, index, epsilon = node.extra
+        terms, f_terms, index = node.extra
 
         # Figure out best term to match (only need to choose 1 and don't need
         # to backtrack over choice).
 
-        for term in pos_terms:
+        for term in [t for necessary in terms if necessary.issubset(sub) for t
+                     in terms[necessary] if not is_negated_term(t)]:
             # Pretty sure this is ok AND faster.
             key = index_key(subst(sub, term))
             # key = index_key(term)
             if key not in index:
-                return
+                continue
 
             facts = [f for f in index[key]]
             shuffle(facts)
 
             for fact in facts:
-                new_sub = unify(term, fact, sub, epsilon)
+                new_sub = unify(term, fact, sub)
                 if new_sub is None:
                     continue
 
-                new_neg_terms = update_neg_pattern(neg_terms, new_sub, index,
-                                                   epsilon)
-                if new_neg_terms is None:
-                    continue
-
-                new_fun_terms = update_fun_pattern(fun_terms, new_sub, index,
-                                                   epsilon)
-                if new_fun_terms is None:
-                    continue
-
-                new_pos_terms = update_pos_pattern(pos_terms, new_sub, index, epsilon)
-
-                if new_pos_terms is None:
+                new_terms = update_terms(terms, f_terms, new_sub, index,
+                                         partial=True)
+                if new_terms is None:
                     continue
 
                 yield Node(frozenset(new_sub.items()), node, None, 0,
-                           (new_pos_terms, new_neg_terms, new_fun_terms, index,
-                            epsilon))
+                           (new_terms, f_terms, index))
 
     def goal_test(self, node, goal):
         """
-        If there are no possible matches of the pattern left, then done
+        If there is some match, but there are no possible matches of the
+        pattern left, then done
         """
-        # pos_terms, _, _, _, _ = node.extra
-        return len([n for n in self.successors(node)]) == 0
-        # return pos_terms is None or len(pos_terms) == 0
+        # need to replace the len(node.state) > 0, with something that works
+        # for even surface predicate matches (no variable bindings necessary).
+        return (len(node.state) > 0 and not any(True for n in
+                self.successors(node)))
 
 
 def eq(a, b):
@@ -484,12 +517,33 @@ def eq(a, b):
 
 if __name__ == "__main__":
 
-    kb = [('Number', 1), ('Number', 2)]
-    q = [('Number', '?x'), ('block', '?b')]
+    from problems.blocksworld import not_equal
+
+    kb = [
+          ('block', 'A'),
+          ('block', 'B'),
+          ('block', 'C'),
+          ('clear', 'A'),
+          ('clear', 'B'),
+          ('clear', 'C'),
+          ('on', 'A', 'Table'),
+          ('on', 'B', 'Table'),
+          ('on', 'C', 'Table'),
+          (not_equal, 'A', 'B'),
+          (not_equal, 'B', 'C'),
+          (not_equal, 'A', 'C'),
+          ]
+    q = [
+         ('block', '?skolem39'),
+         ('block', '?skolem40'),
+         ('clear', '?skolem39'),
+         ('on', '?skolem39', '?skolem40'),
+         ('on', '?skolem40', 'Table')
+         ]
 
     index = build_index(kb)
 
     from pprint import pprint
-    for a in pattern_match(q, index, {}, partial=True):
+    for m in pattern_match(q, index, {}, partial=True):
         print('sol:')
-        pprint(a)
+        pprint(m)

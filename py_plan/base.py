@@ -8,6 +8,15 @@ from py_plan.pattern_matching import new_match
 from py_plan.pattern_matching import is_negated_term
 from py_plan.pattern_matching import extract_strings
 from py_plan.unification import is_variable
+from py_plan.unification import subst
+
+skolem = 0
+
+
+def gen_skolem():
+    global skolem
+    skolem += 1
+    return '?skolem%i' % skolem
 
 
 class Operator:
@@ -46,6 +55,22 @@ class Operator:
 
         # TODO test to ensure no functions use free variables.
 
+    def standardized_copy(self, rename_neg=False):
+        args = set(e for term in self.conditions.union(self.effects) for e in
+                   extract_strings(term) if is_variable(e))
+        sub = {a: gen_skolem() for a in args}
+
+        if rename_neg:
+            conditions = set(('NOT', subst(sub, c)[1]) if is_negated_term(c)
+                             else subst(sub, c) for c in self.conditions)
+            effects = set(('NOT', subst(sub, e)[1]) if is_negated_term(e)
+                          else subst(sub, e) for e in self.effects)
+        else:
+            conditions = set(subst(sub, c) for c in self.conditions)
+            effects = set(subst(sub, e) for e in self.effects)
+
+        return Operator(self.name, conditions, effects, self.cost)
+
     def __str__(self):
         s = "Name: %s" % self.name + "\n"
         s += "Cost: %0.2f" % self.cost + "\n"
@@ -62,10 +87,10 @@ class Operator:
             yield match
 
     def match_goals(self, goal_index):
-        for match in pattern_match(self.effects, [], goal_index, {}):
+        for match in pattern_match(self.effects, goal_index, {}, partial=True):
             yield match
 
-    def match(self, index, epsilon=0.0, initial_mapping=None):
+    def match(self, index, initial_mapping=None):
         """
         Given a state, return all of the bindings of the current pattern that
         produce a valid match.
@@ -73,8 +98,7 @@ class Operator:
         if initial_mapping is None:
             initial_mapping = {}
 
-        for match in pattern_match(self.conditions, index, initial_mapping,
-                                   epsilon):
+        for match in pattern_match(self.conditions, index, initial_mapping):
             yield match
 
 

@@ -7,7 +7,7 @@ from __future__ import unicode_literals
 from __future__ import absolute_import
 from __future__ import division
 
-from math import isclose
+# from math import isclose
 
 
 def is_variable(x):
@@ -38,7 +38,8 @@ def subst(s, x):
         return x
 
 
-def unify(x, y, s=(), check=False, epsilon=0.0):
+# def unify(x, y, s=(), check=False, epsilon=0.0):
+def unify(x, y, s=(), check=False):
     """
     Unify expressions x and y given a provided mapping (s) and a numerical
     tolerance (epsilon). By default s is (), which gets recognized and replaced
@@ -58,9 +59,9 @@ def unify(x, y, s=(), check=False, epsilon=0.0):
         return None
     elif x == y:
         return s
-    elif (isinstance(x, (int, float)) and isinstance(y, (int, float)) and
-          isclose(x, y, abs_tol=epsilon)):
-        return s
+    # elif (isinstance(x, (int, float)) and isinstance(y, (int, float)) and
+    #       isclose(x, y, abs_tol=epsilon)):
+    #     return s
     elif is_variable(x):
         return unify_var(x, y, s, check)
     elif is_variable(y):
@@ -69,7 +70,8 @@ def unify(x, y, s=(), check=False, epsilon=0.0):
           isinstance(y, tuple) and len(x) == len(y)):
         if not x:
             return s
-        return unify(x[1:], y[1:], unify(x[0], y[0], s, epsilon), epsilon)
+        # return unify(x[1:], y[1:], unify(x[0], y[0], s, epsilon), epsilon)
+        return unify(x[1:], y[1:], unify(x[0], y[0], s, check), check)
     else:
         return None
 
@@ -93,9 +95,9 @@ def unify_var(var, x, s, check=False):
     {'?x': ('relation', '?y')}
     """
     if var in s:
-        return unify(s[var], x, s)
+        return unify(s[var], x, s, check)
     elif x in s:
-        return unify(var, s[x], s)
+        return unify(var, s[x], s, check)
     elif check and occur_check(var, x):
         return None
     else:
