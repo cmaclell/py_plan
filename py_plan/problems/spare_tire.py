@@ -2,7 +2,7 @@ from py_search.utils import compare_searches
 from py_search.uninformed import depth_first_search
 from py_search.informed import best_first_search
 
-from py_plan.total_order import ProgressionProblem
+from py_plan.total_order import StateSpacePlanningProblem
 from py_plan.base import Operator
 
 remove = Operator('remove',
@@ -33,6 +33,6 @@ start = [('tire', 'flat'),
 
 goal = [('at', 'spare', 'axle')]
 
-p = ProgressionProblem(start, goal, [remove, puton, leave_overnight])
+p = StateSpacePlanningProblem(start, goal, [remove, puton, leave_overnight])
 
 compare_searches([p], [depth_first_search, best_first_search])

@@ -10,6 +10,27 @@ from __future__ import division
 # from math import isclose
 
 
+def execute_functions(fact):
+    """
+    Traverses a fact executing any functions present within. Returns a fact
+    where functions are replaced with the function return value.
+
+    >>> import operator
+    >>> execute_functions((operator.eq, 5, 5))
+    True
+    >>> execute_functions((operator.eq, 5, 6))
+    False
+
+    """
+    if isinstance(fact, tuple) and len(fact) > 0:
+        if callable(fact[0]):
+                return fact[0](*[execute_functions(ele) for ele in fact[1:]])
+        else:
+            return tuple(execute_functions(ele) for ele in fact)
+
+    return fact
+
+
 def is_variable(x):
     """
     Checks if the provided expression x is a variable, i.e., a string that
@@ -38,13 +59,12 @@ def subst(s, x):
         return x
 
 
-# def unify(x, y, s=(), check=False, epsilon=0.0):
 def unify(x, y, s=(), check=False):
     """
-    Unify expressions x and y given a provided mapping (s) and a numerical
-    tolerance (epsilon). By default s is (), which gets recognized and replaced
-    with an empty dictionary. Return a mapping (a dict) that will make x and y
-    equal or, if this is not possible, then it returns None.
+    Unify expressions x and y given a provided mapping (s).  By default s is
+    (), which gets recognized and replaced with an empty dictionary. Return a
+    mapping (a dict) that will make x and y equal or, if this is not possible,
+    then it returns None.
 
     >>> unify(('Value', '?a', '8'), ('Value', 'cell1', '8'), {})
     {'?a': 'cell1'}
@@ -57,23 +77,17 @@ def unify(x, y, s=(), check=False):
 
     if s is None:
         return None
-    elif x == y:
+    if x == y:
         return s
-    # elif (isinstance(x, (int, float)) and isinstance(y, (int, float)) and
-    #       isclose(x, y, abs_tol=epsilon)):
-    #     return s
-    elif is_variable(x):
+    if is_variable(x):
         return unify_var(x, y, s, check)
-    elif is_variable(y):
+    if is_variable(y):
         return unify_var(y, x, s, check)
-    elif (isinstance(x, tuple) and
-          isinstance(y, tuple) and len(x) == len(y)):
+    if (isinstance(x, tuple) and isinstance(y, tuple) and len(x) == len(y)):
         if not x:
             return s
-        # return unify(x[1:], y[1:], unify(x[0], y[0], s, epsilon), epsilon)
         return unify(x[1:], y[1:], unify(x[0], y[0], s, check), check)
-    else:
-        return None
+    return None
 
 
 def unify_var(var, x, s, check=False):

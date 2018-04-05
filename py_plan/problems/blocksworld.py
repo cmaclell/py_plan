@@ -3,7 +3,7 @@ from py_search.uninformed import depth_first_search
 from py_search.uninformed import breadth_first_search
 from py_search.uninformed import iterative_deepening_search
 
-from py_plan.total_order import ProgressionProblem
+from py_plan.total_order import StateSpacePlanningProblem
 from py_plan.base import Operator
 
 
@@ -78,7 +78,7 @@ if __name__ == "__main__":
     def bidirectional_search(x):
         return breadth_first_search(x, forward=True, backward=True)
 
-    p = ProgressionProblem(start, goal, [move_from_table, move_to_table])
+    p = StateSpacePlanningProblem(start, goal, [move_from_table, move_to_table])
 
     # print(next(best_first_search(p)).state)
 

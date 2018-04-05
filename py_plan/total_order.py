@@ -27,7 +27,13 @@ def powerset(iterable):
     return chain.from_iterable(combinations(s, r) for r in range(len(s)+1))
 
 
-class ProgressionProblem(Problem):
+class StateSpacePlanningProblem(Problem):
+    """
+    A total order planning problem that can be solved with py_search.
+    """
+    # TODO Need to implement domain general heuristics, such as node_value.
+    # TODO Can these heuristics guide which bidirectional search is exanded
+    # first? Currently, we can't support heuristics with bidirectional search.
 
     def __init__(self, state, goals, operators):
         state = frozenset(state)
@@ -132,8 +138,8 @@ if __name__ == "__main__":
     #          ('hand-empty'), ('on', 'C', 'table'), ('clear', 'C')]
     goals = [('on', 'A', 'B'), ('on', 'B', 'C')]
 
-    p = ProgressionProblem(state, goals, [pickup, putdown, stack,
-                                          unstack])
+    p = StateSpacePlanningProblem(state, goals, [pickup, putdown, stack,
+                                                 unstack])
 
     compare_searches([p], [depth_first_search, breadth_first_search,
                            best_first_search])

@@ -14,6 +14,7 @@ from py_search.uninformed import depth_first_search
 from py_plan.unification import is_variable
 from py_plan.unification import subst
 from py_plan.unification import unify
+from py_plan.unification import execute_functions
 
 
 def build_index(facts):
@@ -198,27 +199,6 @@ def update_fun_pattern(fun_pattern, sub, index):
             new_fun_pattern.append(term)
 
     return fun_pattern
-
-
-def execute_functions(fact):
-    """
-    Traverses a fact executing any functions present within. Returns a fact
-    where functions are replaced with the function return value.
-
-    >>> import operator
-    >>> execute_functions((operator.eq, 5, 5))
-    True
-    >>> execute_functions((operator.eq, 5, 6))
-    False
-
-    """
-    if isinstance(fact, tuple) and len(fact) > 0:
-        if callable(fact[0]):
-            return fact[0](*[execute_functions(ele) for ele in fact[1:]])
-        else:
-            return tuple(execute_functions(ele) for ele in fact)
-
-    return fact
 
 
 def update_pos_pattern(pos_pattern, sub, index):

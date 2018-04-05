@@ -2,7 +2,7 @@ from py_search.utils import compare_searches
 from py_search.uninformed import depth_first_search
 from py_search.informed import best_first_search
 
-from py_plan.total_order import ProgressionProblem
+from py_plan.total_order import StateSpacePlanningProblem
 from py_plan.base import Operator
 
 load = Operator('load',
@@ -45,6 +45,6 @@ start = [('At', 'C1', 'SFO'),
 goal = [('At', 'C1', 'JFK'),
         ('At', 'C2', 'SFO')]
 
-p = ProgressionProblem(start, goal, [load, unload, fly])
+p = StateSpacePlanningProblem(start, goal, [load, unload, fly])
 
 compare_searches([p], [depth_first_search, best_first_search])
