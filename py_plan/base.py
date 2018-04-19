@@ -3,8 +3,6 @@ from __future__ import unicode_literals
 from __future__ import absolute_import
 from __future__ import division
 
-from py_plan.pattern_matching import pattern_match
-from py_plan.pattern_matching import new_match
 from py_plan.pattern_matching import is_negated_term
 from py_plan.pattern_matching import extract_strings
 from py_plan.unification import is_variable
@@ -54,20 +52,16 @@ class Operator:
                 self.add_effects.add(e)
 
         # TODO test to ensure no functions use free variables.
+        # TODO replace any equality constraints between variables by just
+        # replacing the variables.
 
-    def standardized_copy(self, rename_neg=False):
+    def standardized_copy(self):
         args = set(e for term in self.conditions.union(self.effects) for e in
                    extract_strings(term) if is_variable(e))
         sub = {a: gen_skolem() for a in args}
 
-        if rename_neg:
-            conditions = set(('NOT', subst(sub, c)[1]) if is_negated_term(c)
-                             else subst(sub, c) for c in self.conditions)
-            effects = set(('NOT', subst(sub, e)[1]) if is_negated_term(e)
-                          else subst(sub, e) for e in self.effects)
-        else:
-            conditions = set(subst(sub, c) for c in self.conditions)
-            effects = set(subst(sub, e) for e in self.effects)
+        conditions = set(subst(sub, c) for c in self.conditions)
+        effects = set(subst(sub, e) for e in self.effects)
 
         return Operator(self.name, conditions, effects, self.cost)
 
@@ -80,26 +74,6 @@ class Operator:
 
     def __repr__(self):
         return str(self.name)
-
-    def match_state(self, state_index):
-        for match in new_match(self.pos_cond, self.neg_cond, self.free_vars,
-                               state_index, {}):
-            yield match
-
-    def match_goals(self, goal_index):
-        for match in pattern_match(self.effects, goal_index, {}, partial=True):
-            yield match
-
-    def match(self, index, initial_mapping=None):
-        """
-        Given a state, return all of the bindings of the current pattern that
-        produce a valid match.
-        """
-        if initial_mapping is None:
-            initial_mapping = {}
-
-        for match in pattern_match(self.conditions, index, initial_mapping):
-            yield match
 
 
 if __name__ == "__main__":

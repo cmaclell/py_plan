@@ -250,7 +250,8 @@ def update_terms(terms, f_terms, sub, index, partial=False):
     new_terms = {}
 
     for necessary in terms:
-        if necessary.issubset(sub):
+        # if necessary.issubset(sub):
+        if meets_requirements(necessary, sub):
             for term in terms[necessary]:
                 bterm = subst(sub, term)
                 if term in f_terms:
@@ -339,7 +340,8 @@ def identify_necessary_vars(term, determined_vars, neg=False, fun=False):
         return set()
 
     if fun and term not in determined_vars:
-        raise Exception("Functionals cannot have existentially"
+        # print(term, determined_vars, neg, fun)
+        raise Exception("Functionals cannot have existentially "
                         "quantified variables.")
 
     if fun or (neg and term in determined_vars):
@@ -348,11 +350,14 @@ def identify_necessary_vars(term, determined_vars, neg=False, fun=False):
     return set()
 
 
-def pattern_match(pattern, index, substitution, partial=False):
+def pattern_match(pattern, index, substitution=None, partial=False):
     """
     Find substitutions that yield a match of the pattern against the provided
     index. If no match is found then it returns None.
     """
+    if substitution is None:
+        substitution = {}
+
     sub = frozenset(substitution.items())
 
     determined_vars = set(v for t in pattern
@@ -368,6 +373,7 @@ def pattern_match(pattern, index, substitution, partial=False):
     f_terms = set(t for t in pattern if is_functional_term(t))
 
     terms = update_terms(terms, f_terms, substitution, index, partial)
+
     if terms is None:
         return
 
@@ -396,8 +402,8 @@ class PatternMatchingProblem(Problem):
         # to backtrack over choice).
         p_terms = [(len(index[subst(sub, t)]) if t in index else 0,
                     len(necessary), random(), t) for necessary in terms
-                   if necessary.issubset(sub) for t in terms[necessary] if not
-                   is_negated_term(t)]
+                   if meets_requirements(necessary, sub) for t in
+                   terms[necessary] if not is_negated_term(t)]
         if len(p_terms) == 0:
             return
 
@@ -441,6 +447,18 @@ class PatternMatchingProblem(Problem):
                        if not is_negated_term(t))
 
 
+def meets_requirements(necessary, sub):
+    return all([not contains_variable(subst(sub, e)) for e in necessary])
+
+
+def contains_variable(term):
+    if is_variable(term):
+        return True
+    if isinstance(term, tuple) and len(term) > 0:
+        return any(contains_variable(e) for e in term)
+    return False
+
+
 class PartialMatchingProblem(PatternMatchingProblem):
     """
     A variation of pattern matching that terminates at a complete match OR
@@ -456,16 +474,18 @@ class PartialMatchingProblem(PatternMatchingProblem):
         # Figure out best term to match (only need to choose 1 and don't need
         # to backtrack over choice).
 
-        for term in [t for necessary in terms if necessary.issubset(sub) for t
-                     in terms[necessary] if not is_negated_term(t)]:
+        for term in [t for necessary in terms if
+                     meets_requirements(necessary, sub)
+                     for t in terms[necessary] if not is_negated_term(t)]:
+
             # Pretty sure this is ok AND faster.
             key = index_key(subst(sub, term))
             # key = index_key(term)
             if key not in index:
-                continue
+                return
 
             facts = [f for f in index[key]]
-            shuffle(facts)
+            # shuffle(facts)
 
             for fact in facts:
                 new_sub = unify(term, fact, sub)
@@ -487,12 +507,7 @@ class PartialMatchingProblem(PatternMatchingProblem):
         """
         # need to replace the len(node.state) > 0, with something that works
         # for even surface predicate matches (no variable bindings necessary).
-        return (len(node.state) > 0 and not any(True for n in
-                self.successors(node)))
-
-
-def eq(a, b):
-    return a == b
+        return len(node.state) > 0
 
 
 if __name__ == "__main__":

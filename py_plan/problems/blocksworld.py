@@ -1,3 +1,5 @@
+from operator import ne
+
 from py_search.utils import compare_searches
 from py_search.uninformed import depth_first_search
 from py_search.uninformed import breadth_first_search
@@ -7,10 +9,6 @@ from py_plan.total_order import StateSpacePlanningProblem
 from py_plan.base import Operator
 
 
-def not_equal(a, b):
-    return a != b
-
-
 move = Operator('move',
                 [('on', '?b', '?x'),
                  ('block', '?b'),
@@ -18,9 +16,9 @@ move = Operator('move',
                  ('block', '?y'),
                  ('clear', '?b'),
                  ('clear', '?y'),
-                 (not_equal, '?b', '?x'),
-                 (not_equal, '?b', '?y'),
-                 (not_equal, '?x', '?y')],
+                 (ne, '?b', '?x'),
+                 (ne, '?b', '?y'),
+                 (ne, '?x', '?y')],
                 [('on', '?b', '?y'),
                  ('clear', '?x'),
                  ('not', ('on', '?b', '?x')),
@@ -32,7 +30,7 @@ move_from_table = Operator('move_from_table',
                             ('clear', '?y'),
                             ('block', '?b'),
                             ('block', '?y'),
-                            (not_equal, '?b', '?y')],
+                            (ne, '?b', '?y')],
                            [('on', '?b', '?y'),
                             ('not', ('on', '?b', 'Table')),
                             ('not', ('clear', '?y'))])
@@ -42,7 +40,7 @@ move_to_table = Operator('move_to_table',
                           ('block', '?b'),
                           ('block', '?x'),
                           ('clear', '?b'),
-                          (not_equal, '?b', '?x')],
+                          (ne, '?b', '?x')],
                          [('on', '?b', 'Table'),
                           ('clear', '?x'),
                           ('not', ('on', '?b', '?x'))])
@@ -60,7 +58,8 @@ if __name__ == "__main__":
              ('clear', 'C')]
 
     goal = [('on', 'A', 'B'),
-            ('on', 'B', 'C')]
+            ('on', 'B', 'C'),
+            ('on', 'C', 'Table')]
 
     # start = [('on', 'A', 'Table'),
     #          ('on', 'B', 'Table'),
@@ -72,15 +71,21 @@ if __name__ == "__main__":
     #          ('clear', 'B'),
     #          ('clear', 'C')]
 
-    def regression_search(x):
+    def progression(x):
+        return breadth_first_search(x, forward=True, backward=False)
+
+    def regression(x):
         return breadth_first_search(x, forward=False, backward=True)
 
-    def bidirectional_search(x):
+    def bidirectional(x):
         return breadth_first_search(x, forward=True, backward=True)
 
-    p = StateSpacePlanningProblem(start, goal, [move_from_table, move_to_table])
+    p = StateSpacePlanningProblem(start, goal, [move_from_table,
+                                                move_to_table])
 
     # print(next(best_first_search(p)).state)
 
-    compare_searches([p], [breadth_first_search, regression_search,
-                           bidirectional_search, iterative_deepening_search])
+    compare_searches([p], [progression,
+                           regression, bidirectional,
+                           # iterative_deepening_search
+    ])

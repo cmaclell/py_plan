@@ -1,9 +1,14 @@
+from operator import ne
+
 from py_search.utils import compare_searches
-from py_search.uninformed import depth_first_search
-from py_search.informed import best_first_search
+from py_search.uninformed import breadth_first_search
 
 from py_plan.total_order import StateSpacePlanningProblem
 from py_plan.base import Operator
+
+from random import seed
+
+seed(0)
 
 load = Operator('load',
                 [('At', '?c', '?a'),
@@ -27,7 +32,8 @@ fly = Operator('fly',
                [('At', '?p', '?from'),
                 ('Plane', '?p'),
                 ('Airport', '?from'),
-                ('Airport', '?to')],
+                ('Airport', '?to'),
+                (ne, '?from', '?to')],
                [('not', ('At', '?p', '?from')),
                 ('At', '?p', '?to')])
 
@@ -45,6 +51,19 @@ start = [('At', 'C1', 'SFO'),
 goal = [('At', 'C1', 'JFK'),
         ('At', 'C2', 'SFO')]
 
+
+def progression(x):
+    return breadth_first_search(x, forward=True, backward=False)
+
+
+def regression(x):
+    return breadth_first_search(x, forward=False, backward=True)
+
+
+def bidirectional(x):
+    return breadth_first_search(x, forward=True, backward=True)
+
+
 p = StateSpacePlanningProblem(start, goal, [load, unload, fly])
 
-compare_searches([p], [depth_first_search, best_first_search])
+compare_searches([p], [progression, regression, bidirectional])

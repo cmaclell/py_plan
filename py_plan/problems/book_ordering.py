@@ -26,7 +26,15 @@ goal = [('Own', 'book2')]
 
 p = StateSpacePlanningProblem(start, goal, [buy])
 
-compare_searches([p], [depth_first_search,
-                       # partial(depth_first_search, forward=True,
-                       # backward=True)
+
+def progression(problem):
+    return partial(depth_first_search, forward=True, backward=False)(problem)
+
+
+def regression(problem):
+    return partial(depth_first_search, forward=False, backward=True)(problem)
+
+
+compare_searches([p], [progression,
+                       # regression
                        ])

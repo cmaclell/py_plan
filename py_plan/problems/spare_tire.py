@@ -1,6 +1,5 @@
 from py_search.utils import compare_searches
-from py_search.uninformed import depth_first_search
-from py_search.informed import best_first_search
+from py_search.uninformed import breadth_first_search
 
 from py_plan.total_order import StateSpacePlanningProblem
 from py_plan.base import Operator
@@ -35,4 +34,17 @@ goal = [('at', 'spare', 'axle')]
 
 p = StateSpacePlanningProblem(start, goal, [remove, puton, leave_overnight])
 
-compare_searches([p], [depth_first_search, best_first_search])
+
+def progression(x):
+    return breadth_first_search(x, forward=True, backward=False)
+
+
+def regression(x):
+    return breadth_first_search(x, forward=False, backward=True)
+
+
+def bidirectional(x):
+    return breadth_first_search(x, forward=True, backward=True)
+
+
+compare_searches([p], [progression, regression, bidirectional])

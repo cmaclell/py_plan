@@ -3,8 +3,12 @@ from __future__ import unicode_literals
 from __future__ import absolute_import
 from __future__ import division
 
+from pprint import pprint
 from itertools import chain
 from itertools import combinations
+from operator import ne
+from operator import eq
+from operator import or_
 
 from py_search.uninformed import depth_first_search
 from py_search.uninformed import breadth_first_search
@@ -14,10 +18,15 @@ from py_search.base import Node
 from py_search.base import GoalNode
 from py_search.utils import compare_searches
 
+from py_plan.pattern_matching import index_key
 from py_plan.pattern_matching import build_index
 from py_plan.pattern_matching import pattern_match
+from py_plan.pattern_matching import is_functional_term
 from py_plan.pattern_matching import is_negated_term
+from py_plan.unification import execute_functions
+from py_plan.unification import is_variable
 from py_plan.unification import subst
+from py_plan.base import gen_skolem
 from py_plan.base import Operator
 
 
@@ -25,6 +34,70 @@ def powerset(iterable):
     "powerset([1,2,3]) --> () (1,) (2,) (3,) (1,2) (1,3) (2,3) (1,2,3)"
     s = list(iterable)
     return chain.from_iterable(combinations(s, r) for r in range(len(s)+1))
+
+
+def get_vars(term):
+    if isinstance(term, (tuple, list)) and len(term) > 0:
+        return set.union(*[get_vars(ele) for ele in term])
+    elif is_variable(term):
+        return set([term])
+    else:
+        return set()
+
+
+def or_constraints(constraints):
+    if len(constraints) == 1:
+        return constraints[0]
+    return (or_, constraints[0], or_constraints(constraints[1:]))
+
+
+def generate_regression_constraints(del_effects, goal_index):
+    return [or_constraints([(ne, v, match[v]) for v in match]) for e in
+            del_effects for match in pattern_match([e], goal_index, {})]
+
+
+def replace_functionals(ele, sub):
+    """
+    Return the element with all functionals replaced,
+    at the top level. Builds up sub along the way.
+    """
+    if ele in sub:
+        return sub[ele]
+    if isinstance(ele, tuple):
+        new_ele = tuple(replace_functionals(e, sub) for e in ele)
+        if callable(new_ele[0]):
+            sub[new_ele] = gen_skolem()
+            return sub[new_ele]
+        return new_ele
+    return ele
+
+
+def replace_constants(ele, sub):
+    """
+    Return the element with all functionals replaced,
+    at the top level. Builds up sub along the way.
+    """
+    if is_variable(ele):
+        return ele
+    if is_functional_term(ele):
+        return ele
+    if isinstance(ele, tuple) and ele[0] == 'not':
+        return ele
+    if isinstance(ele, tuple):
+        new_ele = (ele[0],) + tuple(replace_constants(e, sub) for e in ele[1:])
+        return new_ele
+    sk = gen_skolem()
+    sub[sk] = ele
+    return sk
+
+
+def is_constant(ele):
+    return not isinstance(ele, tuple) and not is_variable(ele)
+
+
+def is_var_assignment(ele):
+    return (isinstance(ele, tuple) and ele[0] == eq and is_variable(ele[1]) and
+            is_constant(ele[2]))
 
 
 class StateSpacePlanningProblem(Problem):
@@ -40,64 +113,130 @@ class StateSpacePlanningProblem(Problem):
         self.operators = operators
         self.goal = GoalNode(frozenset(goals))
         self.initial = Node(state, parent=None, action=None, node_cost=0)
+        achievable = set(e for o in self.operators
+                         for e in o.add_effects)
+        achievable.update(e for e in state)
+        self.achievable = build_index(achievable)
 
     def successors(self, node):
         index = build_index(node.state)
-        # print()
-        # print('state', node.state)
-
         for o in self.operators:
-            # print('OPERATOR', o)
-            for m in o.match(index):
-                dels = frozenset(subst(m, e) for e in o.del_effects)
-                adds = frozenset(subst(m, e) for e in o.add_effects)
+            for m in pattern_match(o.conditions, index):
+                dels = frozenset(execute_functions(e, m) if
+                                 is_functional_term(e) else subst(m, e) for e
+                                 in o.del_effects)
+                adds = frozenset(execute_functions(e, m) if
+                                 is_functional_term(e) else subst(m, e) for e
+                                 in o.add_effects)
                 new_state = node.state.difference(dels).union(adds)
-                # print('succ', (o, m), new_state)
                 yield Node(new_state, node, (o, m), node.cost() + o.cost)
 
     def predecessors(self, node):
-        # TODO replace negated facts with renaming, so NOTs are treated as
-        # relations for the purposes of rule matching (not goal testing).
-        state = frozenset(('NOT', e[1]) if is_negated_term(e) else e for e in
-                          node.state)
-
-        index = build_index(state)
-
+        # print()
+        # pprint(node.state)
+        # if node.parent is not None:
+        #     return
         for o in self.operators:
-            o = o.standardized_copy(rename_neg=True)
+            o = o.standardized_copy()
+
+            # convert constants into equality constraints.
+            constant_mapping = {}
+            var_state = frozenset(replace_constants(e, constant_mapping) for e
+                                  in node.state)
+            equality_constraints = set((eq, e, constant_mapping[e]) for e in
+                                       constant_mapping)
+            var_state = var_state.union(equality_constraints)
+
             # print()
-            # print("--------------------")
-            # print('STATE', node.state)
+            # pprint(var_state)
             # print(o)
-            for sub in o.match_goals(index):
-                for m in powerset(sub.items()):
-                    m = dict(m)
-                    # print(m)
-                    rename_state = frozenset(subst(m, e) for e in node.state)
-                    # print(m)
-                    dels = frozenset(('not', subst(m, e)[1])
-                                     if isinstance(e, tuple) and len(e) > 0 and
-                                     e[0] == 'NOT'
-                                     else subst(m, e) for e in o.effects)
-                    adds = frozenset(('not', subst(m, e)[1])
-                                     if isinstance(e, tuple) and len(e) > 0 and
-                                     e[0] == 'NOT'
-                                     else subst(m, e) for e in o.conditions)
-                    new_state = rename_state.difference(dels).union(adds)
+            for m in pattern_match(var_state,
+                                   build_index(o.add_effects),
+                                   partial=True):
+                # pprint(m)
+                new_state = frozenset(subst(m, e) for e in var_state)
+                new_state = new_state.difference(o.add_effects)
+                new_state = new_state.union(o.conditions)
 
-                    # print()
-                    # print(node.state)
-                    # print(new_state)
+                cons = set(subst(m, e) for e in new_state if
+                           is_functional_term(e))
+                new_state = frozenset(e for e in new_state if not
+                                      is_functional_term(e))
+                # print("Constraints", cons)
 
-                    yield GoalNode(new_state, node, (o, m),
-                                   node.cost() + o.cost)
+                # Check equality constraints that disagree
+                invalid = False
+                assignment_mapping = {}
+                for c in cons:
+                    if is_var_assignment(c):
+                        var = c[1]
+                        const = c[2]
 
-                # if False:
-                #     yield None
+                        if var in assignment_mapping:
+                            invalid = True
+                            break
+
+                        assignment_mapping[var] = const
+
+                if invalid:
+                    continue
+
+                # substitute assignment equality constraints
+                # back in, i.e., replace all var with constants.
+                cons = set(subst(assignment_mapping, e) for e in cons
+                           if not is_var_assignment(e))
+                new_state = frozenset(subst(assignment_mapping, e)
+                                      for e in new_state)
+
+                # check for any other functional constraints.
+                new_cons = set()
+                for c in cons:
+                    try:
+                        if execute_functions(c, m) is False:
+                            invalid = True
+                            break
+                    except TypeError:
+                        new_cons.add(c)
+
+                if invalid:
+                    continue
+
+                # REACHABILITY ANALYSIS, check if there are any
+                # new_state elements that cannot be generated by an
+                # operator and do not exist in the state
+                # print()
+                # pprint(new_state)
+                # print(build_index(self.achievable))
+                for e in new_state:
+                    if is_negated_term(e):
+                        continue
+                    temp_m = {}
+                    new_e = replace_constants(e, temp_m)
+                    p = set((eq, e, temp_m[e]) for e in temp_m)
+                    p.add(new_e)
+                    try:
+                        next(pattern_match(p, self.achievable,
+                                           partial=True))
+                    except Exception as e:
+                        # print(e)
+                        # print("ACHIEVABLE")
+                        # pprint(self.achievable)
+                        # print("HUH?", p)
+                        # print('OP', o, m)
+                        # print(new_state)
+                        invalid = True
+                        break
+
+                if invalid:
+                    continue
+
+                new_state = new_state.union(new_cons)
+                # pprint(new_state)
+
+                yield GoalNode(new_state, node, (o, m), node.cost() + o.cost)
 
     def goal_test(self, node, goal):
         index = build_index(node.state)
-
         for m in pattern_match(goal.state, index, {}):
             return True
         return False

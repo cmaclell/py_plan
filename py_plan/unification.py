@@ -7,10 +7,10 @@ from __future__ import unicode_literals
 from __future__ import absolute_import
 from __future__ import division
 
-# from math import isclose
+from operator import or_
 
 
-def execute_functions(fact):
+def execute_functions(fun, s=()):
     """
     Traverses a fact executing any functions present within. Returns a fact
     where functions are replaced with the function return value.
@@ -22,13 +22,29 @@ def execute_functions(fact):
     False
 
     """
-    if isinstance(fact, tuple) and len(fact) > 0:
-        if callable(fact[0]):
-                return fact[0](*[execute_functions(ele) for ele in fact[1:]])
-        else:
-            return tuple(execute_functions(ele) for ele in fact)
+    if s == ():
+        s = {}
 
-    return fact
+    if isinstance(fun, tuple) and len(fun) > 0:
+        if fun[0] == or_:
+            try:
+                if execute_functions(fun[1], s) is not False:
+                    return True
+            except TypeError as e:
+                if execute_functions(fun[2], s) is not False:
+                    return True
+                raise e
+            return execute_functions(fun[2], s)
+
+        if callable(fun[0]):
+                return fun[0](*[execute_functions(ele, s) for ele in fun[1:]])
+        else:
+            return tuple(execute_functions(ele, s) for ele in fun)
+    if fun in s:
+        return execute_functions(s[fun])
+    if is_variable(fun):
+        raise TypeError("Variables cannot be left unbound in functions.")
+    return fun
 
 
 def is_variable(x):
@@ -44,6 +60,14 @@ def is_variable(x):
     return isinstance(x, str) and len(x) > 0 and x[0] == "?"
 
 
+def is_function(x):
+    """
+    Checks if the provided expression x is a function term. i.e., a tuple
+    where the first element is callable.
+    """
+    return isinstance(x, tuple) and len(x) > 0 and callable(x[0])
+
+
 def subst(s, x):
     """
     Substitute the substitution s into the expression x.
@@ -51,10 +75,10 @@ def subst(s, x):
     >>> subst({'?x': 42, '?y':0}, ('+', ('F', '?x'), '?y'))
     ('+', ('F', 42), 0)
     """
-    if isinstance(x, tuple):
-        return tuple(subst(s, xi) for xi in x)
-    elif x in s:
+    if x in s:
         return s[x]
+    elif isinstance(x, tuple):
+        return tuple(subst(s, xi) for xi in x)
     else:
         return x
 
@@ -83,6 +107,10 @@ def unify(x, y, s=(), check=False):
         return unify_var(x, y, s, check)
     if is_variable(y):
         return unify_var(y, x, s, check)
+    # if is_function(x):
+    #     return unify_fun(x, y, s, check)
+    # if is_function(y):
+    #     return unify_fun(y, x, s, check)
     if (isinstance(x, tuple) and isinstance(y, tuple) and len(x) == len(y)):
         if not x:
             return s
@@ -116,6 +144,25 @@ def unify_var(var, x, s, check=False):
         return None
     else:
         return extend(s, var, x)
+
+
+def unify_fun(fun, x, s, check=False):
+    """
+    Unify x with y using mapping s. If check is True, then do an occurs
+    check. By default the occurs check is turned off. Shutting the check off
+    improves unification performance, but can sometimes result in unsound
+    inference.
+    """
+    result = None
+    if (isinstance(fun, tuple) and isinstance(x, tuple) and
+            len(fun) == len(x)):
+        result = unify(fun[1:], x[1:], unify(fun[0], x[0], s, check), check)
+    if result is None:
+        try:
+            result = unify(execute_functions(fun, s), x, s, check)
+        except TypeError:
+            pass
+    return result
 
 
 def occur_check(var, x):
