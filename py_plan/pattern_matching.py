@@ -325,6 +325,13 @@ def identify_determined_vars(term):
 
 
 def identify_necessary_vars(term, determined_vars, neg=False, fun=False):
+    """
+    >>> det = {'?b', '?other', '?other2', '?y'}
+    >>> identify_necessary_vars(('not', ('on', '?other', '?b')), det)
+    {'?other', '?b'}
+    """
+    # print(term, determined_vars, neg, fun)
+
     if isinstance(term, tuple) and len(term) > 0:
         if term[0] == 'not':
             return identify_necessary_vars(term[1], determined_vars, neg=True,
@@ -333,7 +340,8 @@ def identify_necessary_vars(term, determined_vars, neg=False, fun=False):
             return set.union(*[identify_necessary_vars(ele, determined_vars,
                                                        neg, fun=True)
                                for ele in term[1:]])
-        return set.union(*[identify_necessary_vars(ele, determined_vars)
+        return set.union(*[identify_necessary_vars(ele, determined_vars, neg,
+                                                   fun)
                            for ele in term[1:]])
 
     if not is_variable(term):
@@ -362,6 +370,7 @@ def pattern_match(pattern, index, substitution=None, partial=False):
 
     determined_vars = set(v for t in pattern
                           for v in identify_determined_vars(t))
+    # print('DETERMINED', determined_vars)
 
     terms = {}
     for t in pattern:
@@ -369,6 +378,8 @@ def pattern_match(pattern, index, substitution=None, partial=False):
         if necessary not in terms:
             terms[necessary] = []
         terms[necessary].append(t)
+
+    # print(terms)
 
     f_terms = set(t for t in pattern if is_functional_term(t))
 

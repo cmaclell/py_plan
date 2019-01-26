@@ -14,35 +14,47 @@ move = Operator('move',
                  ('block', '?b'),
                  ('block', '?x'),
                  ('block', '?y'),
-                 ('clear', '?b'),
-                 ('clear', '?y'),
+                 ('block', '?other'),
+                 ('block', '?other2'),
+                 ('not', ('on', '?other', '?b')),
+                 ('not', ('on', '?other2', '?y')),
+                 # ('clear', '?b'),
+                 # ('clear', '?y'),
                  (ne, '?b', '?x'),
                  (ne, '?b', '?y'),
                  (ne, '?x', '?y')],
                 [('on', '?b', '?y'),
-                 ('clear', '?x'),
+                 # ('clear', '?x'),
                  ('not', ('on', '?b', '?x')),
-                 ('not', ('clear', '?y'))])
+                 # ('not', ('clear', '?y'))
+                 ])
 
 move_from_table = Operator('move_from_table',
                            [('on', '?b', 'Table'),
-                            ('clear', '?b'),
-                            ('clear', '?y'),
+                            ('block', '?other'),
+                            ('block', '?other2'),
+                            ('not', ('on', '?other', '?b')),
+                            ('not', ('on', '?other2', '?y')),
+                            # ('clear', '?b'),
+                            # ('clear', '?y'),
                             ('block', '?b'),
                             ('block', '?y'),
                             (ne, '?b', '?y')],
                            [('on', '?b', '?y'),
                             ('not', ('on', '?b', 'Table')),
-                            ('not', ('clear', '?y'))])
+                            # ('not', ('clear', '?y'))
+                            ])
 
 move_to_table = Operator('move_to_table',
                          [('on', '?b', '?x'),
                           ('block', '?b'),
                           ('block', '?x'),
-                          ('clear', '?b'),
+                          ('block', '?other'),
+                          ('not', ('on', '?other', '?b')),
+                          # ('clear', '?b'),
                           (ne, '?b', '?x')],
                          [('on', '?b', 'Table'),
-                          ('clear', '?x'),
+                          # ('clear', '?x'),
                           ('not', ('on', '?b', '?x'))])
 
 
@@ -54,8 +66,9 @@ if __name__ == "__main__":
              ('block', 'A'),
              ('block', 'B'),
              ('block', 'C'),
-             ('clear', 'B'),
-             ('clear', 'C')]
+             # ('clear', 'B'),
+             # ('clear', 'C')
+             ]
 
     goal = [('on', 'A', 'B'),
             ('on', 'B', 'C'),
@@ -89,3 +102,6 @@ if __name__ == "__main__":
                            regression, bidirectional,
                            # iterative_deepening_search
     ])
+
+    print(next(progression(p)).path())
+    print(next(regression(p)).path())

@@ -19,7 +19,7 @@ def gen_skolem():
 
 class Operator:
 
-    def __init__(self, name, conditions, effects, cost=1):
+    def __init__(self, name, conditions, effects, cost=1, reverse_sub=None):
         # make the name just a descriptive string / annotation.
         self.name = name
         self.conditions = set(conditions)
@@ -30,6 +30,11 @@ class Operator:
         self.neg_cond = set()
         self.add_effects = set()
         self.del_effects = set()
+
+        if reverse_sub is None:
+            self.reverse_sub = {}
+        else:
+            self.reverse_sub = reverse_sub
 
         for c in self.conditions:
             if is_negated_term(c):
@@ -59,11 +64,12 @@ class Operator:
         args = set(e for term in self.conditions.union(self.effects) for e in
                    extract_strings(term) if is_variable(e))
         sub = {a: gen_skolem() for a in args}
+        reverse_sub = {sk: sub[sk] for sk in sub}
 
         conditions = set(subst(sub, c) for c in self.conditions)
         effects = set(subst(sub, e) for e in self.effects)
 
-        return Operator(self.name, conditions, effects, self.cost)
+        return Operator(self.name, conditions, effects, self.cost, reverse_sub)
 
     def __str__(self):
         s = "Name: %s" % self.name + "\n"

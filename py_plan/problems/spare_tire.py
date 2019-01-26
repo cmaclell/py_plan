@@ -48,3 +48,7 @@ def bidirectional(x):
 
 
 compare_searches([p], [progression, regression, bidirectional])
+
+
+print(next(progression(p)).path())
+print(next(regression(p)).path())

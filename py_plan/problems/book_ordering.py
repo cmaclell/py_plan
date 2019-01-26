@@ -34,7 +34,11 @@ def progression(problem):
 def regression(problem):
     return partial(depth_first_search, forward=False, backward=True)(problem)
 
+def bidirectional(problem):
+    return partial(depth_first_search, forward=True, backward=True)(problem)
+
 
 compare_searches([p], [progression,
-                       # regression
+                       regression,
+                       bidirectional
                        ])

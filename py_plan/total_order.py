@@ -3,7 +3,6 @@ from __future__ import unicode_literals
 from __future__ import absolute_import
 from __future__ import division
 
-from pprint import pprint
 from itertools import chain
 from itertools import combinations
 from operator import ne
@@ -18,7 +17,6 @@ from py_search.base import Node
 from py_search.base import GoalNode
 from py_search.utils import compare_searches
 
-from py_plan.pattern_matching import index_key
 from py_plan.pattern_matching import build_index
 from py_plan.pattern_matching import pattern_match
 from py_plan.pattern_matching import is_functional_term
@@ -54,6 +52,19 @@ def or_constraints(constraints):
 def generate_regression_constraints(del_effects, goal_index):
     return [or_constraints([(ne, v, match[v]) for v in match]) for e in
             del_effects for match in pattern_match([e], goal_index, {})]
+
+
+def generate_del_constraints(del_effects, positive_goals):
+    # print(del_effects, list(positive_goals))
+    return [or_constraints([(ne, match[v], v) for v in match]) for e in
+            positive_goals for match in
+            pattern_match([e], build_index(del_effects), {})]
+
+
+def generate_add_constraints(add_effects, negative_goals):
+    return [or_constraints([(ne, match[v], v) for v in match]) for e in
+            negative_goals for match in
+            pattern_match([e], build_index(add_effects), {})]
 
 
 def replace_functionals(ele, sub):
@@ -121,6 +132,8 @@ class StateSpacePlanningProblem(Problem):
     def successors(self, node):
         index = build_index(node.state)
         for o in self.operators:
+            # TODO check that operators cannot have unbound variables in
+            # effects.
             for m in pattern_match(o.conditions, index):
                 dels = frozenset(execute_functions(e, m) if
                                  is_functional_term(e) else subst(m, e) for e
@@ -132,34 +145,55 @@ class StateSpacePlanningProblem(Problem):
                 yield Node(new_state, node, (o, m), node.cost() + o.cost)
 
     def predecessors(self, node):
-        # print()
-        # pprint(node.state)
-        # if node.parent is not None:
-        #     return
         for o in self.operators:
+            # Rename variables to prevent collisions.
+            # TODO figure out how to reverse this for printing plans
             o = o.standardized_copy()
 
-            # convert constants into equality constraints.
+            # Convert constants into equality constraints, so that goals with
+            # constants can be matched in reverse.
             constant_mapping = {}
             var_state = frozenset(replace_constants(e, constant_mapping) for e
                                   in node.state)
             equality_constraints = set((eq, e, constant_mapping[e]) for e in
                                        constant_mapping)
+
+            # Generate constraints that prevent operator inconsistency
+            # prevent delete effects that match positive goals
+            del_constraints = generate_del_constraints(o.del_effects,
+                                                       [e for e in var_state if
+                                                        not
+                                                        is_functional_term(e)
+                                                        and not
+                                                        is_negated_term(e)])
+            # prevent positive effects that produce negated goals
+            add_constraints = generate_add_constraints(o.add_effects,
+                                                       [e[1] for e in var_state
+                                                        if not
+                                                        is_functional_term(e)
+                                                        and
+                                                        is_negated_term(e)])
+
+            # TODO figure out how to add any applicable constraints to var
+            # state in order to prevent variables bindings that are
+            # inconsistent this requires comparing the vars in the state with
+            # those in the constraints and only adds constraints that have var
+            # subsets.
             var_state = var_state.union(equality_constraints)
 
-            # print()
-            # pprint(var_state)
-            # print(o)
             for m in pattern_match(var_state,
                                    build_index(o.add_effects),
                                    partial=True):
-                # pprint(m)
+
                 new_state = frozenset(subst(m, e) for e in var_state)
                 new_state = new_state.difference(o.add_effects)
                 new_state = new_state.union(o.conditions)
 
                 cons = set(subst(m, e) for e in new_state if
                            is_functional_term(e))
+                cons.update(subst(m, e) for e in del_constraints)
+                cons.update(subst(m, e) for e in add_constraints)
+
                 new_state = frozenset(e for e in new_state if not
                                       is_functional_term(e))
                 # print("Constraints", cons)
@@ -188,7 +222,9 @@ class StateSpacePlanningProblem(Problem):
                 new_state = frozenset(subst(assignment_mapping, e)
                                       for e in new_state)
 
-                # check for any other functional constraints.
+                # Check for any other functional constraints.
+                # Terminate branches with false functions
+                # Eliminate constraints that are satisfied
                 new_cons = set()
                 for c in cons:
                     try:
@@ -204,9 +240,6 @@ class StateSpacePlanningProblem(Problem):
                 # REACHABILITY ANALYSIS, check if there are any
                 # new_state elements that cannot be generated by an
                 # operator and do not exist in the state
-                # print()
-                # pprint(new_state)
-                # print(build_index(self.achievable))
                 for e in new_state:
                     if is_negated_term(e):
                         continue
@@ -218,26 +251,22 @@ class StateSpacePlanningProblem(Problem):
                         next(pattern_match(p, self.achievable,
                                            partial=True))
                     except Exception as e:
-                        # print(e)
-                        # print("ACHIEVABLE")
-                        # pprint(self.achievable)
-                        # print("HUH?", p)
-                        # print('OP', o, m)
-                        # print(new_state)
                         invalid = True
                         break
 
                 if invalid:
                     continue
 
+                # Add any surviving constraints back into the state
                 new_state = new_state.union(new_cons)
-                # pprint(new_state)
 
                 yield GoalNode(new_state, node, (o, m), node.cost() + o.cost)
 
     def goal_test(self, node, goal):
         index = build_index(node.state)
         for m in pattern_match(goal.state, index, {}):
+            for v in m:
+                goal.action[1][v] = m[v]
             return True
         return False
 
