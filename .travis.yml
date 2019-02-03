@@ -1,0 +1,29 @@
+language: python
+sudo: required
+dist: xenial
+python:
+- '3.7'
+- '2.7'
+- pypy3.5-6.0
+install:
+- pip install tox-travis
+- pip install coveralls
+script:
+- tox
+- coveralls
+deploy:
+  matrix:
+  - provider: pypi
+    user: cmaclell
+    skip_existing: true
+    distributions: sdist bdist_wheel
+    password:
+      secure: a7vgMdw8CPIWeJslKxAB7yeuqz4j7GfEhc5EmN4OxHu88JSGgIfBzAQwUt1mel2D+2+Snz8Rv9dTxo7pRwvwEKbAJHCsJprEizTwBrMONZV0zF+lv+TtVYpLB7yku/la8cYJfDz8DaCPCopSWtRrTAeEM5Tr0E3hIbO14pInYCJMkGXDNG11suh0pbhoQ9Wjz51vIwXi0mNBP2I+/59HVlzOQn8/VOSRYBvMeXKiadA/VAS76kfOEfpemhEfxl9+x8oCnoAKkka4YmCt+s1NBy2Sl7wfT18PwYuxkRci2NmsSxBydMyrGu1lsJw6yKaT8wwCUBsdw6+QssktL2tE0pziWyZXbnCVCi6ly7CS3KQKpKycT4nWLxXrdtHlSnzJzEdpIBA8/jlkODSwnJe9SpGLPE8yRpOfQTQcLsmo5Lb64Z41mFggSz4ITb1RjL+YV/eQSsiVNA8nHaqCn4MLyLQxtKw3YUDj5kl5w15c5Tp7BsZdDqrVk+fjlhfz9si8n0bYBjuSW7vKZvH5NbMMnC92L2nGCSnhk2L1aeg055gP36PplOKrlB2ivQMLO9zzDPZR+2oIjmxAZTjOGUy4ayWcYSNhOh4oSnE+vbDSFZ8bsO9v7Jn13Rb0cxMgullO6L1SY+zcm91BSvyB86mgWt+LGmn1ncnoVukryE2VdwY=
+  - provider: pypi
+    user: cmaclell
+    skip_existing: true
+    distributions: sdist bdist_wheel
+    password:
+      secure: a7vgMdw8CPIWeJslKxAB7yeuqz4j7GfEhc5EmN4OxHu88JSGgIfBzAQwUt1mel2D+2+Snz8Rv9dTxo7pRwvwEKbAJHCsJprEizTwBrMONZV0zF+lv+TtVYpLB7yku/la8cYJfDz8DaCPCopSWtRrTAeEM5Tr0E3hIbO14pInYCJMkGXDNG11suh0pbhoQ9Wjz51vIwXi0mNBP2I+/59HVlzOQn8/VOSRYBvMeXKiadA/VAS76kfOEfpemhEfxl9+x8oCnoAKkka4YmCt+s1NBy2Sl7wfT18PwYuxkRci2NmsSxBydMyrGu1lsJw6yKaT8wwCUBsdw6+QssktL2tE0pziWyZXbnCVCi6ly7CS3KQKpKycT4nWLxXrdtHlSnzJzEdpIBA8/jlkODSwnJe9SpGLPE8yRpOfQTQcLsmo5Lb64Z41mFggSz4ITb1RjL+YV/eQSsiVNA8nHaqCn4MLyLQxtKw3YUDj5kl5w15c5Tp7BsZdDqrVk+fjlhfz9si8n0bYBjuSW7vKZvH5NbMMnC92L2nGCSnhk2L1aeg055gP36PplOKrlB2ivQMLO9zzDPZR+2oIjmxAZTjOGUy4ayWcYSNhOh4oSnE+vbDSFZ8bsO9v7Jn13Rb0cxMgullO6L1SY+zcm91BSvyB86mgWt+LGmn1ncnoVukryE2VdwY=
+    on:
+      tags: true

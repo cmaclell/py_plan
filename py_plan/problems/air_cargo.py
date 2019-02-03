@@ -49,7 +49,8 @@ start = [('At', 'C1', 'SFO'),
          ('Airport', 'SFO')]
 
 goal = [('At', 'C1', 'JFK'),
-        ('At', 'C2', 'SFO')]
+        # ('At', 'C2', 'SFO')
+        ]
 
 
 def progression(x):
@@ -66,4 +67,10 @@ def bidirectional(x):
 
 p = StateSpacePlanningProblem(start, goal, [load, unload, fly])
 
-compare_searches([p], [progression, regression, bidirectional])
+compare_searches([p], [progression,  regression,
+                       bidirectional])
+
+print(next(progression(p)).path())
+path = next(regression(p)).path()
+
+print(path[0][0])
