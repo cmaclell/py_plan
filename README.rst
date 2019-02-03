@@ -1,3 +1,8 @@
+.. image:: https://travis-ci.com/cmaclell/py_plan.svg?branch=master
+    :target: https://travis-ci.com/cmaclell/py_plan
+.. image:: https://coveralls.io/repos/github/cmaclell/py_plan/badge.svg?branch=examples
+   :target: https://coveralls.io/github/cmaclell/py_plan?branch=examples
+
 =========
 Py Plan
 =========
