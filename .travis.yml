@@ -12,7 +12,6 @@ script:
 - tox
 - coveralls
 deploy:
-  matrix:
   - provider: pypi
     user: cmaclell
     skip_existing: true

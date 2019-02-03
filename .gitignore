@@ -6,6 +6,12 @@
 *.pyc
 
 # ignore specific files
+.eggs
+.pytest_cache
+.tox
+*.prof
+py_plan.egg-info
+
 dist/
 docs/_build
 docs/_static
