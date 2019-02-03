@@ -37,7 +37,7 @@ def execute_functions(fun, s=()):
             return execute_functions(fun[2], s)
 
         if callable(fun[0]):
-                return fun[0](*[execute_functions(ele, s) for ele in fun[1:]])
+            return fun[0](*[execute_functions(ele, s) for ele in fun[1:]])
         else:
             return tuple(execute_functions(ele, s) for ele in fun)
     if fun in s:

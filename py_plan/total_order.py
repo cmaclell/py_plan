@@ -250,7 +250,7 @@ class StateSpacePlanningProblem(Problem):
                     try:
                         next(pattern_match(p, self.achievable,
                                            partial=True))
-                    except Exception as e:
+                    except Exception:
                         invalid = True
                         break
 
